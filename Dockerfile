@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg imagemagick espeak-ng openjdk-17-jre-headless nodejs npm unzip zip \
     && rm -rf /var/lib/apt/lists/*
 # Install reproducible Gradle and Android command-line tooling at image build time.
-RUN mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools" /opt/gradle \
+RUN mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools" \
     && curl -fsSL --retry 5 "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS}_latest.zip" -o /tmp/cmdline.zip \
     && unzip -q /tmp/cmdline.zip -d "$ANDROID_SDK_ROOT/cmdline-tools" \
     && mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest" \
@@ -21,7 +21,7 @@ RUN mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools" /opt/gradle \
     && sdkmanager "platform-tools" "platforms;${ANDROID_PLATFORM}" "build-tools;${ANDROID_BUILD_TOOLS}" \
     && curl -fsSL --retry 5 "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o /tmp/gradle.zip \
     && unzip -q /tmp/gradle.zip -d /opt \
-    && ln -s "/opt/gradle-${GRADLE_VERSION}"/bin /opt/gradle/bin \
+    && ln -s "/opt/gradle-${GRADLE_VERSION}" /opt/gradle \
     && rm /tmp/gradle.zip
 WORKDIR /app
 COPY requirements.txt .
@@ -35,7 +35,7 @@ RUN chmod +x scripts/*.sh scripts/stable_diffusion_worker.py android/build-apk.s
     && python -m compileall -q . \
     && python --version && java -version && node --version && npm --version \
     && ffmpeg -version | head -n 1 && ffprobe -version | head -n 1 \
-    && gradle --version | head -n 2 && sdkmanager --version && aapt2 version && apksigner --version && zipalign -h >/dev/null
+    && gradle --version | head -n 2 && sdkmanager --version && aapt2 version && apksigner --version && command -v zipalign >/dev/null
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 CMD curl -fsS "http://127.0.0.1:${PORT:-8080}/health" || exit 1
 CMD ["bash", "scripts/railway-entrypoint.sh"]
