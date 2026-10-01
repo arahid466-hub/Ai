@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [ -f "$ROOT/aether.pid" ]; then kill "$(cat "$ROOT/aether.pid")" 2>/dev/null || true; rm -f "$ROOT/aether.pid"; fi
+pkill -f 'uvicorn.*server.main' 2>/dev/null || true
+echo AETHER_STOPPED

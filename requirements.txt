@@ -1,0 +1,11 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+python-multipart>=0.0.9,<1
+Pillow>=11,<13
+# CPU-only optional model stack: startup remains graceful if these cannot load.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu
+diffusers>=0.30,<1
+transformers>=4.44,<5
+safetensors>=0.4,<1
+huggingface_hub>=0.25,<1

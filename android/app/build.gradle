@@ -1,0 +1,19 @@
+plugins {
+    id 'com.android.application'
+}
+def serverUrlFile = file("${project.projectDir}/../server-url.txt")
+def serverUrl = serverUrlFile.exists() ? serverUrlFile.text.trim() : ''
+if (!serverUrl || serverUrl.contains('YOUR-')) throw new GradleException('Real server URL required in android/server-url.txt')
+android {
+    namespace 'com.aether.ai'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.aether.ai'
+        minSdk 26
+        targetSdk 35
+        versionCode 3
+        versionName '2.2.0'
+        buildConfigField 'String', 'AETHER_SERVER_URL', '"' + serverUrl.replace('"','') + '"'
+    }
+    buildFeatures { buildConfig true }
+}

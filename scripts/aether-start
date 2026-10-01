@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+[ -d .venv ] && source .venv/bin/activate || true
+mkdir -p data/workspace data/uploads data/media
+export AETHER_HOST="${AETHER_HOST:-127.0.0.1}"
+export AETHER_PORT="${AETHER_PORT:-${PORT:-8080}}"
+export AETHER_SECRET_KEY="${AETHER_SECRET_KEY:-$(python -c 'import secrets; print(secrets.token_urlsafe(48))')}"
+pkill -f 'uvicorn.*server.main' 2>/dev/null || true
+nohup python -m uvicorn server.main:app --host "$AETHER_HOST" --port "$AETHER_PORT" > "$ROOT/aether.log" 2>&1 &
+echo $! > "$ROOT/aether.pid"
+sleep 2
+curl -fsS "http://127.0.0.1:$AETHER_PORT/health"
+echo

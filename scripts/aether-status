@@ -1,0 +1,6 @@
+#!/data/data/com.termux/files/usr/bin/bash
+PORT="${AETHER_PORT:-8080}"
+printf '========== AETHER STATUS ==========\n'
+if curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then printf 'Aether API : ONLINE :%s\n' "$PORT"; else printf 'Aether API : OFFLINE\n'; fi
+printf 'Local AI   : '; curl -fsS http://127.0.0.1:8080/api/system-v2/info 2>/dev/null | grep -o '"local_ai"[^,]*' || printf 'check in dashboard\n'
+printf '====================================\n'
