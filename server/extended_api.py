@@ -1,7 +1,13 @@
+from __future__ import annotations
+import urllib.request
+import threading
+import queue
+import os
+import json
+
 """Production-safe extensions for files, background jobs, streaming and optional models.
 Heavy AI models remain optional: an unavailable model never prevents the API from serving.
 """
-from __future__ import annotations
 import asyncio, json, os, secrets, shutil, subprocess, threading, time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -161,12 +167,38 @@ def model_status(u=_user_dep()):
                                  "marker": str(sd_marker), "model": "runwayml/stable-diffusion-v1-5"}}
 
 
-@router.get("/chat/stream")
-async def chat_stream(message: str, u=_user_dep()):
-    # SSE wrapper provides progressive delivery even when local model is unavailable.
-    async def events():
-        yield f"data: {json.dumps({'type': 'start', 'message': message})}\n\n"
-        await asyncio.sleep(0)
-        yield f"data: {json.dumps({'type': 'status', 'status': 'accepted'})}\n\n"
-        yield "data: [DONE]\n\n"
-    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
+
+@router.post("/chat/stream")
+async def chat_stream(request: Request, user=Depends(get_current_user)):
+    try: body = await request.json()
+    except Exception: body = {}
+    message = str(body.get("message") or "").strip()
+    if not message: raise HTTPException(status_code=400, detail="message is required")
+    local_url = os.getenv("AETHER_LOCAL_AI_URL", "http://127.0.0.1:8090/v1/chat/completions")
+    model = os.getenv("AETHER_LOCAL_MODEL", "local-qwen")
+    def generate():
+        q=queue.Queue()
+        def worker():
+            try:
+                payload=json.dumps({"model":model,"messages":[{"role":"user","content":message}],"stream":True}).encode()
+                req=urllib.request.Request(local_url,data=payload,headers={"Content-Type":"application/json"},method="POST")
+                with urllib.request.urlopen(req,timeout=600) as resp:
+                    for raw in resp:
+                        line=raw.decode("utf-8","ignore").strip()
+                        if not line.startswith("data:"): continue
+                        data=line[5:].strip()
+                        if data=="[DONE]": break
+                        try:
+                            obj=json.loads(data); token=obj.get("choices",[{}])[0].get("delta",{}).get("content") or ""
+                            if token: q.put(("token",token))
+                        except Exception: pass
+            except Exception as exc: q.put(("error",str(exc)))
+            finally: q.put(("done",None))
+        threading.Thread(target=worker,daemon=True).start()
+        yield "data: "+json.dumps({"status":"started"})+"\n\n"
+        while True:
+            kind,value=q.get()
+            if kind=="token": yield "data: "+json.dumps({"token":value},ensure_ascii=False)+"\n\n"
+            elif kind=="error": yield "data: "+json.dumps({"error":value})+"\n\n"
+            else: yield "data: "+json.dumps({"done":True})+"\n\n"; break
+    return StreamingResponse(generate(),media_type="text/event-stream",headers={"Cache-Control":"no-cache","Connection":"keep-alive","X-Accel-Buffering":"no"})

@@ -2,7 +2,12 @@ const root = document.getElementById('app');
 let token = localStorage.getItem('aether_token');
 let me = JSON.parse(localStorage.getItem('aether_me') || 'null');
 
-const SERVER_URL = 'https://ai-production-df18.up.railway.app';
+const SERVER_URL = window.AETHER_SERVER_URL || 'https://ai-production-df18.up.railway.app';
+const API_BASE = SERVER_URL.replace(/\/$/, '');
+function apiUrl(path) {
+  if (/^https?:\/\//i.test(path)) return path;
+  return API_BASE + (path.startsWith('/') ? path : '/' + path);
+}
 const api = async (path, opt = {}) => {
   opt.headers = { ...(opt.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
   const r = await fetch(path, opt);
@@ -70,12 +75,28 @@ async function jobs() { const list = await api('/api/jobs'); root.innerHTML = `<
 
 async function loadHistory() { try { const h = await api('/api/chat/history'); messages.innerHTML = h.map(messageHtml).join(''); messages.scrollTop = messages.scrollHeight; } catch (e) {} }
 function messageHtml(x) { return `<div class="msg ${x.role}"><span class="msg-avatar">${x.role === 'user' ? 'YOU' : '✦'}</span><div>${esc(x.content)}</div></div>`; }
-async function send() {
-  const text = box.value.trim(); if (!text) return;
-  messages.innerHTML += messageHtml({ role: 'user', content: text }); box.value = ''; messages.scrollTop = messages.scrollHeight;
-  try { const d = await api('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) }); messages.innerHTML += `<div class="msg assistant"><span class="msg-avatar">✦</span><div>${esc(d.text)}<small class="msg-meta">${esc(d.route)} · ${esc(d.status)}</small></div></div>`; }
-  catch (e) { messages.innerHTML += `<div class="msg assistant danger"><span class="msg-avatar">!</span><div>${esc(e.message)}</div></div>`; }
-  messages.scrollTop = messages.scrollHeight;
+async function send(){
+  const input=document.querySelector('#message, textarea, input[type="text"]');
+  const text=input ? input.value.trim() : '';
+  if(!text) return;
+  const out=document.querySelector('#messages, #chat, .messages');
+  const el=document.createElement('div'); el.className='message assistant';
+  if(out){ out.appendChild(el); out.scrollTop=out.scrollHeight; }
+  try{
+    const res=await fetch(apiUrl('/api/chat/stream'),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({message:text})});
+    if(!res.ok) throw new Error(await res.text());
+    if(!res.body) throw new Error('Streaming response unavailable');
+    const reader=res.body.getReader(), decoder=new TextDecoder(); let buffer='';
+    while(true){
+      const {value,done}=await reader.read(); if(done) break;
+      buffer+=decoder.decode(value,{stream:true}); const parts=buffer.split('\n\n'); buffer=parts.pop()||'';
+      for(const part of parts) for(const line of part.split('\n')){
+        if(!line.startsWith('data:')) continue; const payload=line.slice(5).trim(); if(!payload) continue;
+        try{const obj=JSON.parse(payload); if(obj.token) el.textContent+=obj.token; if(obj.error) el.textContent+='\nError: '+obj.error;}catch(_){}}
+      if(out) out.scrollTop=out.scrollHeight;
+    }
+    if(!el.textContent) el.textContent='No response received.';
+  }catch(err){el.textContent='Error: '+(err?.message||err);}
 }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function logout() { localStorage.clear(); token = null; me = null; login(); }

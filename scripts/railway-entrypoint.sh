@@ -34,7 +34,7 @@ start_qwen() {
   [ -x "$LLAMA_BIN" ] && [ -s "$MODEL_PATH" ] || return 0
   if [ -f "$LLAMA_PID" ] && kill -0 "$(cat "$LLAMA_PID")" 2>/dev/null; then return 0; fi
   "$LLAMA_BIN" -m "$MODEL_PATH" --host "${AETHER_AI_HOST:-127.0.0.1}" --port "${AETHER_AI_PORT:-8090}" \
-    -c "${AETHER_AI_CONTEXT:-2048}" -t "${AETHER_AI_THREADS:-2}" -ngl "${AETHER_AI_NGL:-0}" >>"$LOG_DIR/llama.log" 2>&1 &
+    -c "${AETHER_AI_CONTEXT:-2048}" -t "${AETHER_AI_THREADS:-$(nproc 2>/dev/null || echo 2)}" --parallel "${AETHER_AI_PARALLEL:-2}" -ngl "${AETHER_AI_NGL:-0}" >>"$LOG_DIR/llama.log" 2>&1 &
   echo $! > "$LLAMA_PID"
   echo "AETHER: Qwen started pid=$(cat "$LLAMA_PID")"
 }
